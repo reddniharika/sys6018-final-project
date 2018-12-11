@@ -200,6 +200,8 @@ predict(model3, newdata = test, type = "response") -> test_prob
 test_pred <- factor(ifelse(test_prob >= 0.5, 1, 0))
 table(test_pred ,test$Churn)
 
+#Evaluation of ensemble model
+
 prediction<-cbind(test_pred, yhat.rf, ypred)
 # Create the function for mode
 getmode <- function(v) {
@@ -207,3 +209,5 @@ getmode <- function(v) {
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
 
+s<-apply(prediction, 1, function(x) getmode(x))
+table(s,test$Churn)
