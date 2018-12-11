@@ -3,7 +3,8 @@
 #Name: Niharika Reddy
 
 #Load basic packages
-
+install.packages("cowplot")
+library(cowplot)
 library(readr)
 library(dplyr)
 library(ggplot2)
@@ -16,12 +17,9 @@ data <- read.csv("Telecom_churn.csv")
 #Bird's eye view of the dataset
 str(data)
 summary(data)
-# data$Churn[data$Churn == 1] <- 0
-# data$Churn[data$Churn == 2] <- 1
 data$Churn<-factor(ifelse((data$Churn=="Yes"),1,0))
 
 #Identiying number of missing values
-
 missing<- data %>% summarize_all(funs(sum(is.na(.))))
 
 #Visualizing the missing values
@@ -33,7 +31,6 @@ missing %>% gather(key ="variables", value ="missing_values") %>%
 #There are 11 missing values in the dataset, and all of them are from one variable - "Total Charges".
 #Out of 7043 records, 11 records are missing and for the purpose of this EDA, those NA's will be removed.
 
-#data$TotalCharges
 
 row_index<- which(is.na(data$TotalCharges))
 row_index
@@ -70,10 +67,10 @@ options(repr.plot.width =4, repr.plot.height = 4)
 newdata %>% ggplot(aes(y=MonthlyCharges, x="", fill= Churn)) + geom_boxplot()
 #Monthly charges for customers who have churned is much higher at 75 compared to around 60 for customers who have not churned
 
-par(mfrow=c(3,3))
+
 options(repr.plot.width =4, repr.plot.height = 4)
 newdata %>% ggplot(aes(y=tenure, x="", fill= Churn)) + geom_boxplot()
-#Customers will less tenure are more like to churn.
+#Customers with less tenure are more like to churn.
 #Few outliers do exist.
 
 options(repr.plot.width =4, repr.plot.height = 4)
@@ -82,9 +79,6 @@ newdata %>% ggplot(aes(y=TotalCharges, x="", fill= Churn)) + geom_boxplot()
 
 #Let's visualize categorical variables and see if we can find anything.
 #Preparing a grid of plots
-install.packages("cowplot")
-library(cowplot)
-
 
 options(repr.plot.width = 8, repr.plot.height = 12)
 plot_grid(ggplot(newdata, aes(x=PaymentMethod,fill=Churn))+ geom_bar()+ theme(axis.text.x = element_text(angle = 90, hjust = 1)),
@@ -103,18 +97,14 @@ plot_grid(ggplot(newdata, aes(x=PaymentMethod,fill=Churn))+ geom_bar()+ theme(ax
 #Customers that didn't opt for internet security churned way more than others.
 #Let's drill down one step further on these.
 
-
-#Learning more about those that had month-to-month contract
-
-options(repr.plot.width = 4, repr.plot.height = 6)
-ggplot(newdata, aes(tenure)) +geom_histogram(binwidth=4, color="darkblue", fill="lightblue")
+#Learning more about the month-to-month customers
 
 #Were they senior citizen who switched to another telecom
-newdata %>% filter(tenure<=12) %>% group_by(Churn, SeniorCitizen) %>% dplyr::summarize(count=n()) %>% 
+newdata %>% filter(Contract=="Month-to-month") %>% group_by(Churn, SeniorCitizen) %>% dplyr::summarize(count=n()) %>% 
   mutate(percent= 100*count/sum(count))
-#A fifth of all senior citizens churned. 
+#26% of all Senior citizens with month-to-month contract have churned 
 
-newdata %>% filter(tenure<=12) %>% group_by(Churn, InternetService) %>% dplyr::summarize(count=n()) %>% 
+newdata %>% filter(Contract=="Month-to-month") %>% group_by(Churn, InternetService) %>% dplyr::summarize(count=n()) %>% 
   mutate(percent= 100*count/sum(count)) %>%
   ggplot(aes(x=InternetService, y=percent, fill=Churn)) +geom_bar(stat="identity")
 #Again we see a similar statistic that we saw earlier where customer with Fiberoptic connections were churning the most as compared to others. Here as well, of all the customers having month-to-month contract, it is the customers with fiberoptic that are switching to other telecos.
@@ -128,7 +118,7 @@ newdata %>% filter(tenure<=12) %>% group_by(Churn, StreamingTV) %>% dplyr::summa
 #Split train and test data
 # Set seed
 set.seed(123)
-
+library(caret)
 # Split data, 75% distribution of churn for training
 train.index <- createDataPartition(
   y = newdata$Churn, p = 0.75, list = FALSE
@@ -194,50 +184,17 @@ table(ypred,test$Churn)
 #Prediction accuracy is 77.8%
 
 #Logistic regression
-#delete the customerID and make one-hot coding to create dummy variables for all charactor variables.
-# newdata$customerID <- NULL
-# dmy <- dummyVars("~ .", data = newdata)
-# dmy <- data.frame(predict(dmy, newdata = newdata))
-# str(dmy)
-# 
-# #remove the variables with “No Phone Service” and " No internet service" because they don’t have any predicting power
-# dmy$MultipleLinesNo.phone.service <- NULL
-# dmy$OnlineSecurityNo.internet.service <- NULL
-# dmy$OnlineBackupNo.internet.service <- NULL
-# dmy$DeviceProtectionNo.internet.service <- NULL
-# dmy$TechSupportNo.internet.service <- NULL
-# dmy$StreamingTVNo.internet.service <- NULL
-# dmy$StreamingMoviesNo.internet.service <- NULL
-# 
-# #remove the last level of each factor to avoid singularities.
-# dmy$ContractTwo.year <- NULL
-# dmy$InternetServiceNo <- NULL
-# dmy$PaymentMethodMailed.check <- NULL
-# dmy$tenure_year5.6.years <- NULL
-# 
-# #Split the data into traning and test sets (75% vs 25%)
-# # Set seed
-# set.seed(123)
-# 
-# # Split data, 75% distribution of churn for training
-# train.index <- createDataPartition(
-#   y = newdata$Churn, p = 0.75, list = FALSE
-# )
-# 
-# train <- newdata[train.index,]
-# test <- newdata[-train.index,]
-
-
 #Train the logistic regression model using all columns
-model1 <- glm(Churn ~., family = "binomial", data = train)
+model1 <- glm(Churn ~.-customerID, family = "binomial", data = train)
 summary(model1)
 
 #use AIC to exclude variables based on their significance and create model2
+library(MASS)
 model2 <- stepAIC(model1, trace = 0)
 summary(model2)
 
 model3 <- glm(formula = Churn ~  SeniorCitizen + Dependents + tenure+ PhoneService +
-                PaperlessBilling +  MonthlyCharges +Contract+OnlineSecurity + InternetService,
+                PaperlessBilling +  TotalCharges +Contract+OnlineSecurity + InternetService,
               family = "binomial", data = train)
 predict(model3, newdata = test, type = "response") -> test_prob
 test_pred <- factor(ifelse(test_prob >= 0.5, 1, 0))
